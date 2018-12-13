@@ -1,9 +1,61 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ModularArithmetic;
+
+
+namespace ModularArithmetic
+{
+    public static class Tools
+    {
+        public static int gcd(int a, int b)
+        {
+            if (a < 0)
+            {
+                a = -a;
+            }
+            if (b < 0)
+            {
+                b = -b;
+            }
+            if (b == 0)
+            {
+                return a;
+            }
+            if (a < b)
+            {
+                return gcd(b, a);
+            }
+            return gcd(a - b, b);
+        }
+
+        public static int modinverse(int a, int m)
+        {
+            int c = 0;
+            int b = 0;
+            if (gcd(a, m) != 1)
+            {
+                return 0;
+            }
+            a = (a%m + m)%m;
+            while (b != 1)
+            {
+                c++;
+                b += a;
+                b %= m;
+            }
+            return c;
+        }
+
+	public static int mod(int a, int m)
+	{
+	    return ((a%m)+m)%m;
+	}
+    }
+}
 
 namespace Cryptography
 {
@@ -12,84 +64,206 @@ namespace Cryptography
         static void Main(string[] args)
         {
             string plaintext;
-            string ciphertext;
-            bool running = true;
-            bool validChoice = false;
-            ConsoleKeyInfo yn;
-            ConsoleKeyInfo choice;
-            string[] ciphers = { "Caesar", "Affine" };
+            string ciphertext = "";
+	    string[] ciphers = { "Caesar", "Affine", "Playfair" };
+	    string[] keys = {
+		"Specify the shift",
+		"Specify the parameters",
+		"Specify the keyword"
+	    };
+	    
+	    bool encrypt = getOptBool(
+				      "Do you want to (e)ncrypt or (d)ecrypt?",
+				      'e',
+				      true,
+				      args
+				      );
 
-            while (running)
-            {
-                validChoice = false;
-                Console.WriteLine("Enter the plain text to be encrypted:");
-                plaintext = Console.ReadLine();
-                ciphertext = "";
-                Console.WriteLine("Which cipher would you like to use?");
-                for (int i = 0; i < ciphers.Length; i++)
-                {
-                    Console.WriteLine("{0}: {1}", i, ciphers[i]);
-                }
-                while (!validChoice)
-                {
-                    choice = Console.ReadKey(true);
-                    switch (choice.KeyChar)
-                    {
-                        case '0':
-                            ciphertext = Caesar(plaintext);
-                            validChoice = true;
-                            break;
-                        case '1':
-                            ciphertext = Affine(plaintext);
-                            validChoice = true;
-                            break;
-                        default:
-                            Console.WriteLine("Please select from the list.");
-                            break;
-                    }
-                }
-                Console.WriteLine("The encrpted text is: {0}", ciphertext);
-                Console.WriteLine("Encrypt/decrypt another? (y/n)");
-                yn = Console.ReadKey(true);
-                if (yn.KeyChar == 'N' || yn.KeyChar == 'n')
-                {
-                    running = false;
-                }
-            }
+	    int choice = getOptChoice(
+				   "Which cipher do you want to use?",
+				   'c',
+				   0,
+				   ciphers,
+				   args
+				      );
+
+	    string param = getOptString(
+					 keys[choice],
+					 'p',
+					 "",
+					 args
+					 );
+	    if (Console.IsInputRedirected)
+	    {
+		using (StreamReader reader = new StreamReader(Console.OpenStandardInput(), Console.InputEncoding))
+		{
+		    plaintext = reader.ReadToEnd();
+		}
+	    }
+	    else
+	    {
+		plaintext = getOptString(
+					 "Enter the plaintext",
+					 't',
+					 "hello world",
+					 args
+					 );
+	    }
+	    
+	    switch (choice)
+	    {
+		case 0:
+		    ciphertext = Caesar(plaintext,param,encrypt);
+		    break;
+		case 1:
+		    ciphertext = Affine(plaintext,param,encrypt);
+		    break;
+		case 2:
+		    ciphertext = Playfair(plaintext,param,encrypt);
+		    break;
+		default:
+		    break;
+	    }
+	    Console.WriteLine(ciphertext);
         }
 
-        static string Caesar(string plaintext)
+	static bool getOptBool(string msg, char p, bool def, string[] args)
+	{
+	    bool opt = def;
+	    if (args.Length > 0)
+	    {
+		// Getting options from command line
+		string optn = "";
+		for (int i = 0; i < args.Length - 1; i++) {
+		    if (args[i] == "-" + p)
+		    {
+			optn = args[i+1];
+		    }
+		}
+		if (optn != "") {
+		    if (optn.ToLower() == "false")
+		    {
+			opt = false;
+		    }
+		    else
+		    {
+			opt = true;
+		    }
+		}
+	    }
+	    else
+	    {
+		Console.WriteLine(msg);
+		ConsoleKeyInfo response = Console.ReadKey(true);
+		if (response.KeyChar == p)
+		{
+		    opt = true;
+		}
+		else
+		{
+		    opt = false;
+		}
+	    }
+	    return opt;
+	}
+
+	static string getOptString(string msg, char p, string def, string[] args)
+	{
+	    string opt = def;
+	    if (args.Length > 0)
+	    {
+		// Getting options from command line
+		string optn = "";
+		for (int i = 0; i < args.Length - 1; i++) {
+		    if (args[i] == "-" + p)
+		    {
+			optn = args[i+1];
+		    }
+		}
+		if (optn != "") {
+		    opt = optn;
+		}
+	    }
+	    else
+	    {
+		Console.WriteLine(msg);
+		opt = Console.ReadLine();
+	    }
+	    return opt;
+	}
+
+	static int getOptChoice(string msg, char p, int def, string[] opts, string[] args)
+	{
+	    int opt = def;
+	    if (args.Length > 0)
+	    {
+		// Getting options from command line
+		string optn = "";
+		for (int i = 0; i < args.Length - 1; i++) {
+		    if (args[i] == "-" + p)
+		    {
+			optn = args[i+1];
+		    }
+		}
+		if (optn != "") {
+		    for (int i = 0; i < opts.Length; i++) {
+			if (optn.ToLower() == opts[i].ToLower()) {
+			    opt = i;
+			}
+		    }
+		}
+	    }
+	    else
+	    {
+		Console.WriteLine(msg);
+		for (int i = 0; i < opts.Length; i++) {
+		    Console.WriteLine("{0}: {1}", i, opts[i]);
+		}
+		ConsoleKeyInfo response = Console.ReadKey(true);
+		if (response.KeyChar >= '0' && response.KeyChar < '0' + opts.Length)
+		{
+		    opt = response.KeyChar - '0';
+		}
+	    }
+	    return opt;
+	}
+	
+	static string CleanText(string plaintext)
+	{
+	    string cleantext = "";
+	    char c;
+	    for (int i = 0; i < plaintext.Length; i++)
+	    {
+		c = plaintext[i];
+		if (c >= 'A' && c <= 'Z')
+		{
+		    c -= 'A';
+		    c += 'a';
+		    cleantext += c;
+		}
+		else if (c >= 'a' && c <= 'z')
+		{
+		    cleantext +=c;
+		}
+	    }
+
+	    return cleantext;
+	}
+	
+        static string Caesar(string plaintext, string shiftResponse, bool encrypt)
         {
             int shift = 0;
-            string shiftResponse;
-            bool validShift = false;
 
-            Console.WriteLine("Enter the shift amount:");
-
-            while (!validShift)
-            {
-                shiftResponse = Console.ReadLine();
-                if (int.TryParse(shiftResponse, out shift))
-                {
-                    validShift = true;
-                }
-                else
-                {
-                    if (shiftResponse[0] >= 'A' && shiftResponse[0] <= 'Z')
-                    {
-                        shift = shiftResponse[0] - 'A';
-                        validShift = true;
-                    }
-                    else if (shiftResponse[0] >= 'a' && shiftResponse[0] <= 'z')
-                    {
-                        shift = shiftResponse[0] - 'a';
-                        validShift = true;
-                    }
-                    else
-                    {
-                        Console.WriteLine("Sorry, I couldn't figure out the shift.  Please try again:");
-                    }
-                }
+	    if (!int.TryParse(shiftResponse, out shift))
+	    {
+		if (shiftResponse[0] >= 'A' && shiftResponse[0] <= 'Z')
+		{
+		    shift = shiftResponse[0] - 'A';
+		}
+		else if (shiftResponse[0] >= 'a' && shiftResponse[0] <= 'z')
+		{
+		    shift = shiftResponse[0] - 'a';
+		}
             }
             var ciphertext = new StringBuilder();
 
@@ -112,7 +286,7 @@ namespace Cryptography
             return ciphertext.ToString();
         }
 
-        static string Affine(string plaintext)
+        static string Affine(string plaintext, string param, bool encrypt)
         {
             int a = 1;
             int b = 0;
@@ -212,50 +386,90 @@ namespace Cryptography
 
         }
 
-    }
-}
+	static string Playfair(string plaintext, string keyword, bool encrypt)
+	{
+	    string cleantext = CleanText(plaintext);
+	    string ciphertext = "";
+	    int dir;
+	    if (encrypt) {
+		dir = 1;
+	    } else {
+		dir = -1;
+	    }
 
-namespace ModularArithmetic
-{
-    public static class Tools
-    {
-        public static int gcd(int a, int b)
-        {
-            if (a < 0)
+	    char[,] playfair = new char[5, 5];
+            int[] invplayfair = new int[26];
+	    
+	    keyword = "j" + keyword + "abcdefghijklmnopqrstuvwxyz";
+            keyword = new String(keyword.Distinct().ToArray());
+            keyword = keyword.Substring(1);
+            for (int i = 0; i < 5; i++)
             {
-                a = -a;
+                for (int j = 0; j < 5; j++)
+                {
+                    playfair[i, j] = keyword[5 * i + j];
+                    invplayfair[keyword[5 * i + j] - 'a'] = 5*i + j;
+                }
             }
-            if (b < 0)
+            invplayfair['j' - 'a'] = invplayfair['i' - 'a'];
+	    Console.WriteLine(string.Join(",", invplayfair));
+	    string output;
+            for (int i = 0; i < 5; i++)
             {
-                b = -b;
-            }
-            if (b == 0)
-            {
-                return a;
-            }
-            if (a < b)
-            {
-                return gcd(b, a);
-            }
-            return gcd(a - b, b);
-        }
+		output = "";
+                for (int j = 0; j < 5; j++)
+                {
+		    output += playfair[i,j];
+		}
+		Console.WriteLine(output);
+	    }
+	    int loc = 0;
+	    char xtra = 'x';
+	    char a;
+	    char b;
+	    while (loc < cleantext.Length) {
+		a = cleantext[loc];
+		if (a == 'j') {
+		    a = 'i';
+		}
+		if (loc < cleantext.Length - 1) {
+		    if (cleantext[loc] == cleantext[loc+1]) {
+			b = xtra;
+		    } else {
+			b = cleantext[loc+1];
+			loc++;
+		    }
+		} else {
+		    b = xtra;
+		}
+		if (b == 'j') {
+		    b = 'i';
+		}
+		loc++;
+		a -= 'a';
+		b -= 'a';
+		Console.WriteLine("{0} is at {1} and {2} is at {3}",a + 'a', invplayfair[a], b + 'a', invplayfair[b]);
+		if (invplayfair[a]/5 == invplayfair[b]/5) {
+		    // Same row
+		    ciphertext += playfair[invplayfair[a]/5, Tools.mod(invplayfair[a]%5 + dir,5)];
+		    ciphertext += playfair[invplayfair[b]/5, Tools.mod(invplayfair[b]%5 + dir,5)];
+		}
+		else if (invplayfair[a]%5 == invplayfair[b]%5) {
+		    // Same column
+		    ciphertext += playfair[Tools.mod(invplayfair[a]/5 + dir,5), invplayfair[a]%5];
+		    ciphertext += playfair[Tools.mod(invplayfair[b]/5 + dir,5), invplayfair[b]%5];
+		    
+		}
+		else
+		{
+		    // All the rest
+		    ciphertext += playfair[invplayfair[a]/5, invplayfair[b]%5];
+		    ciphertext += playfair[invplayfair[b]/5, invplayfair[a]%5];
+		}
+	    }
 
-        public static int modinverse(int a, int m)
-        {
-            int c = 0;
-            int b = 0;
-            if (gcd(a, m) != 1)
-            {
-                return 0;
-            }
-            a = (a%m + m)%m;
-            while (b != 1)
-            {
-                c++;
-                b += a;
-                b %= m;
-            }
-            return c;
-        }
+	    return ciphertext;
+	}
+
     }
 }
