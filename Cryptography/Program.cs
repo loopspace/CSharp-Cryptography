@@ -63,9 +63,23 @@ namespace Cryptography
     {
         static void Main(string[] args)
         {
+	    Dictionary<string,string> options = ParseOptions(args);
             string plaintext;
             string ciphertext = "";
-            bool encrypt;
+            bool encrypt = true;
+	    bool debug = false;
+	    bool spaces = false;
+	    int choice = -1;
+	    string param;
+
+	    string[] ciphers = {
+		"Caesar",
+		"Affine",
+		"Substitution",
+		"Vigenere",
+		"Playfair"
+	    };
+	    
             string[] keys = {
                 "Specify the shift",
                 "Specify the parameters",
@@ -74,35 +88,93 @@ namespace Cryptography
                 "Specify the keyword"
             };
 
-            int encryptOpt = GetOptChoice(
-                "What action do you want to take?",
-                          'e',
-                          0,
-                          new string[] { "Encrypt", "Decrypt" },
-                          args
-                          );
-            if (encryptOpt == 0)
-            {
-                encrypt = true;
-            }
-            else
-            {
-                encrypt = false;
-            }
-            int choice = GetOptChoice(
-                       "Which cipher do you want to use?",
-                       'c',
-                       0,
-                       new string[] { "Caesar", "Affine", "Substitution", "Vigenere", "Playfair" },
-                       args
-                          );
+	    if (options.ContainsKey("d") && options["d"] == "true")
+	    {
+		debug = true;
+	    }
 
-            string param = GetOptString(
+	    if (debug)
+	    {
+		Console.WriteLine("Debug: mode on");
+	    }
+
+	    if (options.ContainsKey("e"))
+	    {
+		if (options["e"] == "false")
+		{
+		    encrypt = false;
+		}
+	    }
+	    else if (options.Count == 0)
+	    {
+		
+		int encryptOpt = GetOptChoice(
+			  "What action do you want to take?",
+                          0,
+                          new string[] { "Encrypt", "Decrypt" }
+                          );
+		if (encryptOpt == 0)
+		{
+		    encrypt = true;
+		}
+		else
+		{
+		    encrypt = false;
+		}
+	    }
+
+	    if (options.ContainsKey("s"))
+	    {
+		if (options["s"] == "true")
+		{
+		    spaces = true;
+		}
+	    }
+	    else if (options.Count == 0)
+	    {
+		
+		int spacesOpt = GetOptChoice(
+			  "Preserve spaces and punctuation?",
+                          1,
+                          new string[] { "No", "Yes" }
+                          );
+		if (spacesOpt == 0)
+		{
+		    spaces = false;
+		}
+		else
+		{
+		    spaces = true;
+		}
+	    }
+
+	    if (options.ContainsKey("c"))
+	    {
+		string opt = options["c"].Substring(0,1).ToUpper() + options["c"].Substring(1).ToLower();
+		choice = Array.IndexOf(ciphers,opt);
+	    }
+
+	    if (choice == -1)
+	    {
+		choice = GetOptChoice(
+		       "Which cipher do you want to use?",
+                       0,
+		       ciphers
+                          );
+	    }
+
+	    if (options.ContainsKey("p"))
+	    {
+		param = options["p"];
+	    }
+	    else
+	    {
+		param = GetOptString(
                          keys[choice],
-                         'p',
-                         "",
-                         args
+                         ""
                          );
+	    }
+	    
             if (Console.IsInputRedirected)
             {
                 using (StreamReader reader = new StreamReader(Console.OpenStandardInput(), Console.InputEncoding))
@@ -112,30 +184,49 @@ namespace Cryptography
             }
             else
             {
-                plaintext = GetOptString(
+		if (options.ContainsKey("t"))
+		{
+		    plaintext = options["t"];
+		}
+		else
+		{
+		    plaintext = GetOptString(
                              "Enter the plaintext",
-                             't',
-                             "hello world",
-                             args
+                             "hello world"
                              );
+		}
             }
 
+	    if (debug)
+	    {
+		string action;
+		if (encrypt)
+		{
+		    action = "Encrypting";
+		}
+		else
+		{
+		    action = "Decrypting";
+		}
+		Console.WriteLine("Debug: {0} using {1} cipher with parameter {2}", action, ciphers[choice], param);
+	    }
+	    
             switch (choice)
             {
                 case 0:
-                    ciphertext = Caesar(plaintext, param, encrypt);
+                    ciphertext = Caesar(plaintext, param, encrypt, spaces, debug);
                     break;
                 case 1:
-                    ciphertext = Affine(plaintext, param, encrypt);
+                    ciphertext = Affine(plaintext, param, encrypt, spaces, debug);
                     break;
                 case 2:
-                    ciphertext = Substitution(plaintext, param, encrypt);
+                    ciphertext = Substitution(plaintext, param, encrypt, spaces, debug);
                     break;
                 case 3:
-                    ciphertext = Vigenere(plaintext, param, encrypt);
+                    ciphertext = Vigenere(plaintext, param, encrypt, spaces, debug);
                     break;
                 case 4:
-                    ciphertext = Playfair(plaintext, param, encrypt);
+                    ciphertext = Playfair(plaintext, param, encrypt, spaces, debug);
                     break;
                 default:
                     break;
@@ -146,113 +237,76 @@ namespace Cryptography
                 Console.ReadKey();
             }
         }
-        /*
-            static bool getOptBool(string msg, char p, bool def, string[] args)
-            {
-                bool opt = def;
-                if (args.Length > 0)
-                {
-                // Getting options from command line
-                string optn = "";
-                for (int i = 0; i < args.Length - 1; i++) {
-                    if (args[i] == "-" + p)
-                    {
-                    optn = args[i+1];
-                    }
-                }
-                if (optn != "") {
-                    if (optn.ToLower() == "false")
-                    {
-                    opt = false;
-                    }
-                    else
-                    {
-                    opt = true;
-                    }
-                }
-                }
-                else
-                {
-                Console.WriteLine(msg);
-                ConsoleKeyInfo response = Console.ReadKey(true);
-                if (response.KeyChar == p)
-                {
-                    opt = true;
-                }
-                else
-                {
-                    opt = false;
-                }
-                }
-                return opt;
-            }
-            */
-        static string GetOptString(string msg, char p, string def, string[] args)
+
+	static Dictionary<string,string> ParseOptions(string[] args)
+	{
+	    Dictionary<string,string> options = new Dictionary<string,string>();
+
+	    string key = "";
+	    for (int i = 0; i < args.Length; i++)
+	    {
+		if (args[i][0] == '-')
+		{
+		    if (args[i][1] == '-')
+		    {
+			key = args[i].Substring(2);
+		    }
+		    else
+		    {
+			key = args[i].Substring(1);
+		    }
+		    if (key.Length > 1 && key.Substring(0,3) == "no-")
+		    {
+			key = key.Substring(3);
+			options[key] = "false";
+		    }
+		    else
+		    {
+			options[key] = "true";
+		    }
+			
+		}
+		else
+		{
+		    if (key != "")
+		    {
+			if (options[key] == "true" || options[key] == "false")
+			{
+			    options[key] = args[i];
+			}
+			else
+			{
+			    options[key] += " ";
+			    options[key] += args[i];
+			}
+		    }
+		}
+	    }
+	    return options;
+	}
+	
+        static string GetOptString(string msg, string def)
         {
             string opt = def;
-            if (args.Length > 0)
-            {
-                // Getting options from command line
-                string optn = "";
-                for (int i = 0; i < args.Length - 1; i++)
-                {
-                    if (args[i] == "-" + p)
-                    {
-                        optn = args[i + 1];
-                    }
-                }
-                if (optn != "")
-                {
-                    opt = optn;
-                }
-            }
-            else
-            {
-                Console.WriteLine(msg);
-                opt = Console.ReadLine();
-            }
+	    Console.WriteLine(msg);
+	    opt = Console.ReadLine();
             return opt;
         }
 
-        static int GetOptChoice(string msg, char p, int def, string[] opts, string[] args)
+        static int GetOptChoice(string msg, int def, string[] opts)
         {
             int opt = def;
-            if (args.Length > 0)
-            {
-                // Getting options from command line
-                string optn = "";
-                for (int i = 0; i < args.Length - 1; i++)
-                {
-                    if (args[i] == "-" + p)
-                    {
-                        optn = args[i + 1];
-                    }
-                }
-                if (optn != "")
-                {
-                    for (int i = 0; i < opts.Length; i++)
-                    {
-                        if (optn.ToLower() == opts[i].ToLower())
-                        {
-                            opt = i;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                Console.WriteLine(msg);
-                for (int i = 0; i < opts.Length; i++)
-                {
-                    Console.WriteLine("{0}: {1}", i, opts[i]);
-                }
-                ConsoleKeyInfo response = Console.ReadKey(true);
-                if (response.KeyChar >= '0' && response.KeyChar < '0' + opts.Length)
-                {
-                    opt = response.KeyChar - '0';
-                }
-                Console.WriteLine("  {0}", opts[opt]);
-            }
+	    Console.WriteLine(msg);
+	    for (int i = 0; i < opts.Length; i++)
+	    {
+		Console.WriteLine("{0}: {1}", i, opts[i]);
+	    }
+	    ConsoleKeyInfo response = Console.ReadKey(true);
+	    if (response.KeyChar >= '0' && response.KeyChar < '0' + opts.Length)
+	    {
+		opt = response.KeyChar - '0';
+	    }
+	    Console.WriteLine("  {0}", opts[opt]);
             return opt;
         }
 
@@ -278,9 +332,14 @@ namespace Cryptography
             return cleantext;
         }
 
-        static string Caesar(string plaintext, string shiftResponse, bool encrypt)
+        static string Caesar(string plaintext, string shiftResponse, bool encrypt, bool spaces, bool debug)
         {
             int shift;
+
+	    if (!spaces)
+	    {
+		plaintext = CleanText(plaintext);
+	    }
 
             if (!int.TryParse(shiftResponse, out shift))
             {
@@ -297,6 +356,12 @@ namespace Cryptography
             {
                 shift = (26 - shift) % 26;
             }
+
+	    if (debug)
+	    {
+		Console.WriteLine("Debug: shift is {0}",shift);
+	    }
+	    
             var ciphertext = new StringBuilder();
 
             foreach (char c in plaintext)
@@ -318,8 +383,13 @@ namespace Cryptography
             return ciphertext.ToString();
         }
 
-        static string Substitution(string plaintext, string keyword, bool encrypt)
+        static string Substitution(string plaintext, string keyword, bool encrypt, bool spaces, bool debug)
         {
+	    if (!spaces)
+	    {
+		plaintext = CleanText(plaintext);
+	    }
+	    
             keyword = CleanText(keyword);
             int[] keys = new int[26];
 	    int[] rkeys = new int[26];
@@ -362,6 +432,16 @@ namespace Cryptography
 
 	    }
 
+	    if (debug)
+	    {
+		string alphabet = "";
+		for (int i = 0; i < 26; i++)
+		{
+		    alphabet += (char)(keys[i] + 97);
+		}
+		Console.WriteLine("Debug: key is {0}",alphabet);
+	    }
+
             var ciphertext = new StringBuilder();
 
             foreach (char c in plaintext)
@@ -383,8 +463,13 @@ namespace Cryptography
             return ciphertext.ToString();
         }
 
-        static string Affine(string plaintext, string response, bool encrypt)
+        static string Affine(string plaintext, string response, bool encrypt, bool spaces, bool debug)
         {
+	    if (!spaces)
+	    {
+		plaintext = CleanText(plaintext);
+	    }
+	    
             int a = 1;
             int b = 0;
             int x;
@@ -466,8 +551,10 @@ namespace Cryptography
                 a = Tools.ModInverse(a, 26);
                 b = Tools.Mod(-a*b,26);
             }
-            Console.WriteLine("Parameters: {0} x + {1}", a, b);
-
+	    if (debug)
+	    {
+		Console.WriteLine("Debug: Parameters are {0} x + {1}", a, b);
+	    }
 
             var ciphertext = new StringBuilder();
 
@@ -491,8 +578,13 @@ namespace Cryptography
 
         }
 
-        static string Vigenere(string plaintext, string keyword, bool encrypt)
+        static string Vigenere(string plaintext, string keyword, bool encrypt, bool spaces, bool debug)
         {
+	    if (!spaces)
+	    {
+		plaintext = CleanText(plaintext);
+	    }
+	    
             string ciphertext = "";
             keyword = keyword.ToLower();
             int[] keys = new int[keyword.Length];
@@ -537,7 +629,7 @@ namespace Cryptography
             return ciphertext;
         }
 
-        static string Playfair(string plaintext, string keyword, bool encrypt)
+        static string Playfair(string plaintext, string keyword, bool encrypt, bool spaces, bool debug)
         {
             string cleantext = CleanText(plaintext);
             string ciphertext = "";
@@ -566,17 +658,26 @@ namespace Cryptography
                 }
             }
             invplayfair['j' - 'a'] = invplayfair['i' - 'a'];
-            Console.WriteLine(string.Join(",", invplayfair));
-            string output;
-            for (int i = 0; i < 5; i++)
-            {
-                output = "";
-                for (int j = 0; j < 5; j++)
-                {
-                    output += playfair[i, j];
-                }
-                Console.WriteLine(output);
-            }
+
+	    if (debug)
+	    {
+		if (spaces)
+		{
+		    Console.WriteLine("Debug: Playfair cipher doesn't preserve spaces or punctuation.");
+		}
+		
+		Console.WriteLine("Debug: grid is");
+		string output;
+		for (int i = 0; i < 5; i++)
+		{
+		    output = "";
+		    for (int j = 0; j < 5; j++)
+		    {
+			output += playfair[i, j];
+		    }
+		    Console.WriteLine("        {0}", output);
+		}
+	    }
             int loc = 0;
             char xtra = 'x';
             char a;
@@ -611,7 +712,7 @@ namespace Cryptography
                 loc++;
                 a -= 'a';
                 b -= 'a';
-                Console.WriteLine("{0} is at {1} and {2} is at {3}", a + 'a', invplayfair[a], b + 'a', invplayfair[b]);
+//                Console.WriteLine("{0} is at {1} and {2} is at {3}", a + 'a', invplayfair[a], b + 'a', invplayfair[b]);
                 if (invplayfair[a] / 5 == invplayfair[b] / 5)
                 {
                     // Same row
