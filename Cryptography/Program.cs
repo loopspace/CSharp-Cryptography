@@ -61,16 +61,21 @@ namespace Cryptography
 {
     class Program
     {
+
+	private static List<int> EnglishFrequencies = new List<int> {14810, 2715, 4943, 7874, 21912, 4200, 3693, 10795, 13318, 188, 1257, 7253, 4761, 12666, 14003, 3316, 205, 10977, 11450, 16587, 5246, 2019, 3819, 315, 3853, 128};
+	private static List<char> EnglishLetters = new List<char> {'e', 't', 'a', 'o', 'i', 'n', 's', 'r', 'h', 'd', 'l', 'u', 'c', 'm', 'f', 'y', 'w', 'g', 'p', 'b', 'v', 'k', 'x', 'q', 'j', 'z'};
+	
         static void Main(string[] args)
         {
 	    Dictionary<string,string> options = ParseOptions(args);
             string plaintext;
             string ciphertext = "";
             bool encrypt = true;
+	    bool crack = false;
 	    bool debug = false;
 	    bool spaces = false;
 	    int choice = -1;
-	    string param;
+	    string param = "";
 
 	    string[] ciphers = {
 		"Caesar",
@@ -88,6 +93,38 @@ namespace Cryptography
                 "Specify the keyword"
             };
 
+	    if (options.ContainsKey("h") && options["h"] == "true")
+	    {
+		Console.WriteLine(@"
+Cryptography.exe [-h] [-d] [-e|-k] [-s] [-c cipher] [-p parameters] [-t text]
+
+Encrypt or decrypt text according to the specified cipher.  Any required
+options not given on the command line will be asked for, and the text can
+be passed as standard input.
+
+Options:
+  -h  Display this help message and exit
+  -d  Enable debugging mode
+  -e  Encrypt (default), use --no-e or -e false to decrypt
+  -k  Attempt to crack
+  -s  Preserve spaces and punctuation
+  -c  Select cipher from:
+        Caesar
+        Affine
+        Vigenere
+        Substitution
+        Playfair
+  -p  Specify the parameters
+        Caesar:       shift
+        Affine:       x -> ax + b
+        Vigenere:     keyword
+        Substitution: keyword
+        Playfair:     keyword
+      Parameters for Caesar and affine can be specified as numbers or letters.
+");
+		return;
+	    }
+	    
 	    if (options.ContainsKey("d") && options["d"] == "true")
 	    {
 		debug = true;
@@ -111,18 +148,29 @@ namespace Cryptography
 		int encryptOpt = GetOptChoice(
 			  "What action do you want to take?",
                           0,
-                          new string[] { "Encrypt", "Decrypt" }
+                          new string[] { "Encrypt", "Decrypt", "Crack" }
                           );
 		if (encryptOpt == 0)
 		{
 		    encrypt = true;
 		}
-		else
+		else if (encryptOpt == 1)
 		{
 		    encrypt = false;
 		}
+		else if (encryptOpt == 2)
+		{
+		    encrypt = false;
+		    crack = true;
+		}
 	    }
 
+	    if (options.ContainsKey("k"))
+	    {
+		encrypt = false;
+		crack = true;
+	    }
+	    
 	    if (options.ContainsKey("s"))
 	    {
 		if (options["s"] == "true")
@@ -152,6 +200,11 @@ namespace Cryptography
 	    {
 		string opt = options["c"].Substring(0,1).ToUpper() + options["c"].Substring(1).ToLower();
 		choice = Array.IndexOf(ciphers,opt);
+		if (choice == -1)
+		{
+		    Console.WriteLine("Unknown cipher {0}", options["c"]);
+		    return;
+		}
 	    }
 
 	    if (choice == -1)
@@ -169,10 +222,13 @@ namespace Cryptography
 	    }
 	    else
 	    {
-		param = GetOptString(
-                         keys[choice],
-                         ""
-                         );
+		if (! crack)
+		{
+		    param = GetOptString(
+					 keys[choice],
+					 ""
+					 );
+		}
 	    }
 	    
             if (Console.IsInputRedirected)
@@ -208,25 +264,29 @@ namespace Cryptography
 		{
 		    action = "Decrypting";
 		}
+		if (crack)
+		{
+		    action = "Cracking";
+		}
 		Console.WriteLine("Debug: {0} using {1} cipher with parameter {2}", action, ciphers[choice], param);
 	    }
 	    
             switch (choice)
             {
                 case 0:
-                    ciphertext = Caesar(plaintext, param, encrypt, spaces, debug);
+                    ciphertext = Caesar(plaintext, param, encrypt, crack, spaces, debug);
                     break;
                 case 1:
-                    ciphertext = Affine(plaintext, param, encrypt, spaces, debug);
+                    ciphertext = Affine(plaintext, param, encrypt, crack, spaces, debug);
                     break;
                 case 2:
-                    ciphertext = Substitution(plaintext, param, encrypt, spaces, debug);
+                    ciphertext = Substitution(plaintext, param, encrypt, crack, spaces, debug);
                     break;
                 case 3:
-                    ciphertext = Vigenere(plaintext, param, encrypt, spaces, debug);
+                    ciphertext = Vigenere(plaintext, param, encrypt, crack, spaces, debug);
                     break;
                 case 4:
-                    ciphertext = Playfair(plaintext, param, encrypt, spaces, debug);
+                    ciphertext = Playfair(plaintext, param, encrypt, crack, spaces, debug);
                     break;
                 default:
                     break;
@@ -332,7 +392,24 @@ namespace Cryptography
             return cleantext;
         }
 
-        static string Caesar(string plaintext, string shiftResponse, bool encrypt, bool spaces, bool debug)
+	static List<int> Frequencies(string ciphertext)
+	{
+	    List<int> frequencies = new List<int>();
+	    for (int i = 0; i < 26; i++) {
+		frequencies.Add(0);
+	    }
+
+	    string cleantext = CleanText(ciphertext);
+	    
+	    foreach (char c in cleantext)
+	    {
+		frequencies[c - 'a']++;
+	    }
+
+	    return frequencies;
+	}
+	
+        static string Caesar(string plaintext, string shiftResponse, bool encrypt, bool crack, bool spaces, bool debug)
         {
             int shift;
 
@@ -341,21 +418,49 @@ namespace Cryptography
 		plaintext = CleanText(plaintext);
 	    }
 
-            if (!int.TryParse(shiftResponse, out shift))
-            {
-                if (shiftResponse[0] >= 'A' && shiftResponse[0] <= 'Z')
-                {
-                    shift = shiftResponse[0] - 'A';
-                }
-                else if (shiftResponse[0] >= 'a' && shiftResponse[0] <= 'z')
-                {
-                    shift = shiftResponse[0] - 'a';
-                }
-            }
-            if (!encrypt)
-            {
-                shift = (26 - shift) % 26;
-            }
+	    if (crack)
+	    {
+		List<int> frequencies = Frequencies(plaintext);
+		if (debug)
+		{
+		    Console.WriteLine("Debug: Frequences are {0}", String.Join(", ", frequencies));
+		}
+
+		int m = 0;
+		int mx = 0;
+		for (int i = 0; i < 26; i++)
+		{
+		    int c = 0;
+		    for (int j = 0; j < 26; j++)
+		    {
+			c += frequencies[(j + i)%26] * EnglishFrequencies[j];
+		    }
+		    if (c > mx)
+		    {
+			mx = c;
+			m = i;
+		    }
+		}
+		shift = 26 - m;
+	    }
+	    else
+	    {
+		if (!int.TryParse(shiftResponse, out shift))
+		{
+		    if (shiftResponse[0] >= 'A' && shiftResponse[0] <= 'Z')
+		    {
+			shift = shiftResponse[0] - 'A';
+		    }
+		    else if (shiftResponse[0] >= 'a' && shiftResponse[0] <= 'z')
+		    {
+			shift = shiftResponse[0] - 'a';
+		    }
+		}
+		if (!encrypt)
+		{
+		    shift = (26 - shift) % 26;
+		}
+	    }
 
 	    if (debug)
 	    {
@@ -383,53 +488,66 @@ namespace Cryptography
             return ciphertext.ToString();
         }
 
-        static string Substitution(string plaintext, string keyword, bool encrypt, bool spaces, bool debug)
+        static string Substitution(string plaintext, string keyword, bool encrypt, bool crack, bool spaces, bool debug)
         {
+
 	    if (!spaces)
 	    {
 		plaintext = CleanText(plaintext);
 	    }
-	    
-            keyword = CleanText(keyword);
             int[] keys = new int[26];
 	    int[] rkeys = new int[26];
-	    int a;
-	    int j = 0;
 
-	    for (int i = 0; i < 26; i++) {
-		keys[i] = -1;
+	    if (crack)
+	    {
+		List<int> frequencies = Frequencies(plaintext);
+		List<char> alphabet = new List<char> ();
+		for (char c = 'a'; c <= 'z'; c++)
+		{
+		    alphabet.Add(c);
+		}
+		keyword = String.Join("", alphabet);
 	    }
+	    else
+	    {
+		keyword = CleanText(keyword);
+		int a;
+		int j = 0;
+
+		for (int i = 0; i < 26; i++) {
+		    keys[i] = -1;
+		}
 	    
-	    foreach (char c in keyword)
-	    {
-		a = c - 'a';
-		if (!keys.Contains(a)) {
-		    keys[j] = a;
-		    j++;
-		}
-	    }
-
-	    int b = keys[j-1] + 1;
-	    foreach (char c in "abcdefghijklmnopqrstuvwxyz")
-	    {
-		a = Tools.Mod( c - 'a' + b,26);
-		if (!keys.Contains(a)) {
-		    keys[j] = a;
-		    j++;
-		}
-	    }
-
-	    if (!encrypt)
-	    {
-		for (int i = 0; i < 26; i++)
+		foreach (char c in keyword)
 		{
-		    rkeys[keys[i]] = i;
+		    a = c - 'a';
+		    if (!keys.Contains(a)) {
+			keys[j] = a;
+			j++;
+		    }
 		}
-		for (int i = 0; i < 26; i++)
+		int b = keys[j-1] + 1;
+		foreach (char c in "abcdefghijklmnopqrstuvwxyz")
 		{
-		    keys[i] = rkeys[i];
+		    a = Tools.Mod( c - 'a' + b,26);
+		    if (!keys.Contains(a)) {
+			keys[j] = a;
+			j++;
+		    }
 		}
 
+		if (!encrypt)
+		{
+		    for (int i = 0; i < 26; i++)
+		    {
+			rkeys[keys[i]] = i;
+		    }
+		    for (int i = 0; i < 26; i++)
+		    {
+			keys[i] = rkeys[i];
+		    }
+
+		}
 	    }
 
 	    if (debug)
@@ -463,7 +581,7 @@ namespace Cryptography
             return ciphertext.ToString();
         }
 
-        static string Affine(string plaintext, string response, bool encrypt, bool spaces, bool debug)
+        static string Affine(string plaintext, string response, bool encrypt, bool crack, bool spaces, bool debug)
         {
 	    if (!spaces)
 	    {
@@ -578,7 +696,7 @@ namespace Cryptography
 
         }
 
-        static string Vigenere(string plaintext, string keyword, bool encrypt, bool spaces, bool debug)
+        static string Vigenere(string plaintext, string keyword, bool encrypt, bool crack, bool spaces, bool debug)
         {
 	    if (!spaces)
 	    {
@@ -629,7 +747,7 @@ namespace Cryptography
             return ciphertext;
         }
 
-        static string Playfair(string plaintext, string keyword, bool encrypt, bool spaces, bool debug)
+        static string Playfair(string plaintext, string keyword, bool encrypt, bool crack, bool spaces, bool debug)
         {
             string cleantext = CleanText(plaintext);
             string ciphertext = "";
